@@ -1,58 +1,40 @@
-using System.Collections;
-using System.Collections.Generic;
+﻿using System;
 using UnityEngine;
+using UnityEngine.UI;
 
-public enum CardSuit
+namespace DefaultNamespace
 {
-    Heart,
-    Club,
-    Diamond,
-    Spade
-}
-
-public enum CardValue
-{
-    Six,
-    Seven,
-    Eight,
-    Nine,
-    Ten,
-    Jack,
-    Queen,
-    King,
-    Ace
-}
-
-public class Card
-{
-    public CardSuit cardSuit;
-    public CardValue cardValue;
-
-    public Card(CardSuit cardSuit, CardValue cardValue)
+    public class Card : MonoBehaviour
     {
-        this.cardSuit = cardSuit;
-        this.cardValue = cardValue;
-    }
+        public static event Action<Card, CardData> OnAnyCardPressed;
+        
+        [SerializeField] 
+        private Button cardButton;
+        [SerializeField] 
+        private Image cardIcon;
+        
+        private CardData cardData;
 
-    public bool CanDefeat(Card otherCard, CardSuit trumpSuit)
-    {
-        if (cardSuit != trumpSuit && otherCard.cardSuit == trumpSuit)
+        private void Awake()
         {
-            return false;
+            cardButton.onClick.AddListener(HandleCardPressed);
+        }
+
+        private void OnDestroy()
+        {
+            cardButton.onClick.RemoveListener(HandleCardPressed);
+        }
+
+        public void SetupCard(CardData data, bool interactable = false)
+        {
+            cardData = data;
+            cardButton.interactable = interactable;
+            cardIcon.sprite = cardData.cardIcon;
         }
         
-        if (cardSuit == trumpSuit && otherCard.cardSuit != trumpSuit)
+        private void HandleCardPressed()
         {
-            return true;
+            OnAnyCardPressed?.Invoke(this, cardData);
         }
-        
-        if ((cardSuit != trumpSuit && otherCard.cardSuit != trumpSuit) ||
-            (cardSuit == trumpSuit && otherCard.cardSuit == trumpSuit))
-        {
-            return cardValue > otherCard.cardValue;
-        }
-
-        Debug.Log("Wat");
-        return false;
     }
 }

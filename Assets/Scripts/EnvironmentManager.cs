@@ -74,5 +74,6 @@ public class EnvironmentManager : MonoBehaviour
         academyStepped = false;
         unrequestedEnvironments = new List<Environment>(environments);
         uncompletedEnvironments = new List<Environment>(environments);
+        //Resources.UnloadUnusedAssets();
     }
 }

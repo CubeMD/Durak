@@ -46,9 +46,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f19b572bf997c844490bef9470368959, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  deck: {fileID: 11400000, guid: 2b05fc34216ddb447906f2acc0553018, type: 2}
+  drawCards: []
   players:
   - {fileID: 7068940181427758652}
   - {fileID: 8201802290854060094}
+  playedCardData:
+    cardSuit: 0
+    cardValue: 0
+    cardIcon: {fileID: 0}
   trumpSuit: 0
   numAttacks: 0
   numTurnsThisAttack: 0

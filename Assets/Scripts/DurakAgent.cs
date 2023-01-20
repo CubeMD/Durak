@@ -1,8 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Google.Protobuf.WellKnownTypes;
 using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
@@ -11,7 +9,7 @@ using Random = UnityEngine.Random;
 
 public class DurakAgent : Agent
 {
-    public readonly List<Card> hand = new List<Card>();
+    public readonly List<CardData> hand = new List<CardData>();
 
     [SerializeField] private Environment environment;
 
@@ -42,15 +40,15 @@ public class DurakAgent : Agent
             cardObservations.Add(new float[4]);
         }
 
-        foreach (Card card in hand)
+        foreach (CardData card in hand)
         {
             cardObservations[CardToObservationIndex(card)][0] = 1;
         }
-        foreach (Card card in environment.discardedCards)
+        foreach (CardData card in environment.discardedCards)
         {
             cardObservations[CardToObservationIndex(card)][1] = 1;
         }
-        foreach (Card card in environment.inPlayCards)
+        foreach (CardData card in environment.inPlayCards)
         {
             cardObservations[CardToObservationIndex(card)][2] = 1;
         }
@@ -64,7 +62,7 @@ public class DurakAgent : Agent
         {
             sensor.AddObservation(observation);
         }
-        sensor.AddObservation(ConvertIndexToOneHot((int)environment.trumpSuit, 4));
+        sensor.AddObservation(ConvertIndexToOneHot((int)environment.trumpCard.cardSuit, 4));
         sensor.AddObservation(finishingOff);
         sensor.AddObservation(attacking);
         sensor.AddObservation(environment.drawCards.Count / 36f);
@@ -83,9 +81,9 @@ public class DurakAgent : Agent
             mask[i] = false;
         }
         
-        GetValidCardsFromHand(out List<Card> validCards);
+        GetValidCardsFromHand(out List<CardData> validCards);
         
-        foreach (Card card in validCards)
+        foreach (CardData card in validCards)
         {
             mask[CardToObservationIndex(card)] = true;
         }
@@ -98,15 +96,15 @@ public class DurakAgent : Agent
         }
     }
 
-    private void GetValidCardsFromHand(out List<Card> validCards)
+    private void GetValidCardsFromHand(out List<CardData> validCards)
     {
-        validCards = new List<Card>();
+        validCards = new List<CardData>();
 
         if (attacking)
         {
             if (environment.numTurnsThisAttack > 0)
             {
-                foreach (Card card in hand)
+                foreach (CardData card in hand)
                 {
                     if (environment.inPlayCards.Any(x => x.cardValue == card.cardValue))
                     {
@@ -121,9 +119,9 @@ public class DurakAgent : Agent
         }
         else
         {
-            foreach (Card card in hand)
+            foreach (CardData card in hand)
             {
-                if (card.CanDefeat(environment.inPlayCards[0], environment.trumpSuit))
+                if (card.CanDefeat(environment.inPlayCards[0], environment.trumpCard.cardSuit))
                 {
                     validCards.Add(card);
                 }
@@ -151,23 +149,24 @@ public class DurakAgent : Agent
             Debug.Log("Attempted invalid action");
         }
         
-        string action = "skip";
+        // string action = "skip";
+        // string attackingString = attacking ? finishingOff ? "finishing" : "attacking" : "defending";
+        // string handString = hand.Aggregate(String.Empty, (current, card) => current + (card.cardValue + " " + card.cardSuit + ", "));
+        // string tableCard = environment.inPlayCards.Count > 0
+        //     ? environment.inPlayCards[0].cardValue + " " + environment.inPlayCards[0].cardSuit
+        //     : "None";
         
         if (actionIndex < 36)
         {
-            int cardInHandIndex = ObservationIndexToHandCardIndex(actionIndex);
-            action = hand[cardInHandIndex].cardValue + " " + hand[cardInHandIndex].cardSuit;
-            environment.playedCard = hand[cardInHandIndex];
+            int cardInHandIndex = CardIndexToCardInHandIndex(actionIndex);
+            // action = hand[cardInHandIndex].cardValue + " " + hand[cardInHandIndex].cardSuit;
+            environment.playedCardData = hand[cardInHandIndex];
             hand.RemoveAt(cardInHandIndex);
         }
-        
-        string attackingString = attacking ? "attacking" : "defending";
-        string handString = hand.Aggregate(String.Empty, (current, card) => current + (card.cardValue + " " + card.cardSuit + ", "));
-        string tableCard = environment.inPlayCards.Count > 0
-            ? environment.inPlayCards[0].cardValue + " " + environment.inPlayCards[0].cardSuit
-            : "None";
-        
-        Debug.Log($"Trump: {environment.trumpSuit}, Agent {gameObject.GetInstanceID()}, {attackingString}, hand: {handString}, table card {tableCard}, action {action}");
+
+        // Debug.Log(
+        //     $"Attack: {environment.numAttacks}, Turn: {environment.numTurnsThisAttack}, Trump: {environment.trumpCard}, Draw count: {environment.drawCards.Count}\n" +
+        //     $"Agent {gameObject.GetInstanceID()} is {attackingString} {tableCard} with {action}. Hand: {handString}");
     }
 
     public void Attack(DurakAgent opponent)
@@ -194,12 +193,12 @@ public class DurakAgent : Agent
         RequestDecision();
     }
 
-    private int CardToObservationIndex(Card card)
+    private int CardToObservationIndex(CardData cardData)
     {
-        return (int)card.cardValue + (int)card.cardSuit * 9;
+        return (int)cardData.cardValue + (int)cardData.cardSuit * 9;
     }
     
-    private int ObservationIndexToHandCardIndex(int cardIndex)
+    private int CardIndexToCardInHandIndex(int cardIndex)
     {
         CardSuit cardSuit = (CardSuit)(cardIndex / 9);
         CardValue cardValue = (CardValue)(cardIndex % 9);

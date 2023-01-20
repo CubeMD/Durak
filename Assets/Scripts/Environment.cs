@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using DefaultNamespace;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -8,19 +10,26 @@ public class Environment : MonoBehaviour
 {
     public event Action<Environment> OnEnvironmentRequestedDecision;
     public event Action<Environment> OnEnvironmentGameCompleted;
+
+    [SerializeField] 
+    private Deck deck;
     
-    public readonly List<Card> drawCards = new List<Card>();
-    public readonly List<Card> inPlayCards = new List<Card>();
-    public readonly List<Card> discardedCards = new List<Card>();
+    public List<CardData> drawCards = new List<CardData>();
+    public readonly List<CardData> inPlayCards = new List<CardData>();
+    public readonly List<CardData> discardedCards = new List<CardData>();
     public List<DurakAgent> players;
-    public Card playedCard;
-    public CardSuit trumpSuit;
+    public CardData playedCardData;
+    public CardData trumpCard;
     public int numAttacks;
     public int numTurnsThisAttack;
+    public int turnsAmount;
     
     [SerializeField] private int defaultCardAmount = 6;
     [SerializeField] private int maxTurnsPerAttack = 100;
     [SerializeField] private int maxAttacksPerGame = 100;
+    [SerializeField] private float waitTime = 1f;
+    [SerializeField] private bool human;
+    [SerializeField] public UIController UIController;
 
     private Coroutine gameRoutine;
     private Coroutine attackRoutine;
@@ -36,13 +45,25 @@ public class Environment : MonoBehaviour
         ShuffleDraw();
         DealCards(players);
         DurakAgent winner = null;
-        trumpSuit = (CardSuit)Random.Range(0, 3);
+        
+        trumpCard = drawCards.Last();
+
+        if (UIController != null)
+        {
+            UIController.SetTrumpCard(trumpCard);
+        }
+
         int attackingPlayerIndex = Random.Range(0, players.Count);
         int defendingPlayerIndex = NextPlayerIndex(attackingPlayerIndex);
         numAttacks = 0;
-        
+
         while (numAttacks < maxAttacksPerGame && winner == null)
         {
+            if (UIController != null)
+            {
+                UIController.ClearDesk();
+            }
+
             attackRoutine = StartCoroutine(PlayAnAttack(attackingPlayerIndex, defendingPlayerIndex));
             yield return new WaitUntil(() => attackRoutine == null);
             
@@ -67,6 +88,8 @@ public class Environment : MonoBehaviour
             }
             
             numAttacks++;
+            
+            yield return new WaitForSeconds(waitTime);
         }
         
         ReturnCardsToDraw();
@@ -93,11 +116,18 @@ public class Environment : MonoBehaviour
         attackerWon = false;
         bool attackerGaveUp = false;
         numTurnsThisAttack = 0;
+        turnsAmount = -1;
+        
+        if (UIController != null)
+        {
+            UIController.UpdatePlayersHands(players, currentTurnPlayerIndex, human);
+        }
         
         while (numTurnsThisAttack < maxTurnsPerAttack && !attackerWon && !attackerGaveUp)
         {
             if (currentTurnPlayerIndex == attackerIndex)
             {
+                turnsAmount++;
                 players[attackerIndex].Attack(players[defenderIndex]);
                 OnEnvironmentRequestedDecision?.Invoke(this);
                 yield return new WaitUntil(() => EnvironmentManager.academyStepped);
@@ -109,13 +139,12 @@ public class Environment : MonoBehaviour
                 yield return new WaitUntil(() => EnvironmentManager.academyStepped);
             }
             
-            if (playedCard == null)
+            if (playedCardData == null)
             {
                 if (currentTurnPlayerIndex == attackerIndex)
                 {
                     attackerGaveUp = true;
                     discardedCards.AddRange(inPlayCards);
-                    
                 }
                 else
                 {
@@ -127,25 +156,37 @@ public class Environment : MonoBehaviour
                         OnEnvironmentRequestedDecision?.Invoke(this);
                         yield return new WaitUntil(() => EnvironmentManager.academyStepped);
                         
-                        attackerAddedCard = playedCard != null;
+                        attackerAddedCard = playedCardData != null;
 
                         if (attackerAddedCard)
                         {
-                            inPlayCards.Insert(0, playedCard);
-                            playedCard = null;
+                            AddInPlayCard();
                         }
+                        
+                        turnsAmount++;
+                        
+                        if (UIController != null)
+                        {
+                            UIController.UpdatePlayersHands(players, currentTurnPlayerIndex, human);
+                        }
+                        
+                        yield return new WaitForSeconds(waitTime);
+                        
                     } while (attackerAddedCard);
                     
                     attackerWon = true;
                     players[defenderIndex].hand.AddRange(inPlayCards);
+                    if (UIController != null)
+                    {
+                        UIController.ClearDesk();
+                    }
                 }
                 inPlayCards.Clear();
             }
             else
             {
-                inPlayCards.Insert(0, playedCard);
-                playedCard = null;
-                
+                AddInPlayCard();
+
                 if (currentTurnPlayerIndex == defenderIndex && players[defenderIndex].hand.Count < 1)
                 {
                     attackerGaveUp = true;
@@ -158,21 +199,31 @@ public class Environment : MonoBehaviour
                 }
             }
             
+            if (UIController != null)
+            {
+                UIController.UpdatePlayersHands(players, currentTurnPlayerIndex, human);
+            }
+            
             numTurnsThisAttack++;
+            yield return new WaitForSeconds(waitTime);
         }
         
         attackRoutine = null;
     }
+
+    private void AddInPlayCard()
+    {
+        inPlayCards.Insert(0, playedCardData);
+        if (UIController != null)
+        {
+            UIController.AddInPlayCard(playedCardData, turnsAmount);
+        }
+        playedCardData = null;
+    }
     
     private void FillDrawWithAllCards()
     {
-        foreach (CardSuit cardType in Enum.GetValues(typeof(CardSuit)))
-        {
-            foreach (CardValue cardValue in Enum.GetValues(typeof(CardValue)))
-            {
-                drawCards.Add(new Card(cardType, cardValue));
-            }
-        } 
+        drawCards = new List<CardData>(deck.AllCards);
     }
 
     private void ShuffleDraw()
@@ -205,6 +256,11 @@ public class Environment : MonoBehaviour
                     return;
                 }
             }
+        }
+        
+        if (UIController != null)
+        {
+            UIController.UpdateDrawAmount(drawCards.Count);
         }
     }
 
